@@ -1,32 +1,151 @@
 #include <iostream>
 #include <vector>
 #include <mpi.h>
+#include <stdlib.h>
+#include<stdio.h>
+#include <cmath>
 using namespace std;
-
+int SEND_N = 5;
+int SEND_X = 10;
+int SEND_SOLN = 15;
+int SEND_FLAG = 20;
+int SEND_QUIT = 25;
 int main() {
 
     int comm_sz;
     int my_rank;
+    int n;
+    double error;
+    cin>>n;
+    cin>>error;
     MPI_Init(NULL, NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
+    int blck_size = n / (comm_sz - 1);
 
     if(my_rank == 0) {
-        vector<int> arr = {1,2,3,4,5,6};
+        double helper_vars[3];
+        helper_vars[0] = n;
+        helper_vars[1] = blck_size;
+        helper_vars[2] = error;
         for(int i = 1; i < comm_sz; i++) {
-            MPI_Send((void *) &arr, 2, MPI_INT, i, 0, MPI_COMM_WORLD);
+            MPI_Send(&helper_vars, 3, MPI_DOUBLE, i, SEND_N, MPI_COMM_WORLD);
         }
-    } else {
-        int* arr;
-        MPI_Status *status;
-        cout<<"Process"<<my_rank<<endl;
-        MPI_Recv(arr, 2, MPI_INT, 0, 0, MPI_COMM_WORLD, status);
 
-        for(int i = 0; i < 2; i++) {
-            cout<<arr[i]<<" ";
+        double* X = (double*)malloc(sizeof(double)*n);
+        for(int i = 0; i < n ; i++) {
+            cin>>X[i];
+        }
+
+        double Soln[n][n+1];
+        for(int i = 0; i < n; i++) {
+            for(int j = 0; j < n+1; j++) {
+                cin>>Soln[i][j];
+            }
+        }
+
+        double* addr = &Soln[0][0];
+        for(int i = 1; i < comm_sz; i++) {
+            int sz = (blck_size)*(n+1);
+            MPI_Send(addr, sz, MPI_DOUBLE, i, SEND_SOLN, MPI_COMM_WORLD);
+            addr += sz;
+        }
+
+
+        while(true) {
+            
+            for(int i = 1; i < comm_sz; i++) {
+                MPI_Send(X, n, MPI_DOUBLE, i, SEND_X, MPI_COMM_WORLD);
+            }
+            
+            int final = 0;
+            double* new_X = (double*) malloc(sizeof(double)*(n+1));
+            for(int i = 1; i < comm_sz; i++) {
+                int flag;
+                double* new_X = (double*) malloc(sizeof(double)*(blck_size+1));
+                MPI_Status *status;
+                MPI_Recv(new_X, blck_size+1, MPI_DOUBLE, i, SEND_FLAG, MPI_COMM_WORLD, status);
+                flag = new_X[blck_size];
+                // update X
+                for(int j = 0; j < blck_size; j++) {
+                    X[(i-1)*blck_size+j] = new_X[j];
+                }
+
+                if(flag == 1) {
+                    final = 1;
+                }
+            }
+
+            if(final == 0) {
+                int quit = 1;
+                for(int i = 1; i < comm_sz; i++) {
+                    MPI_Send(&quit, 1, MPI_INT, i, SEND_QUIT, MPI_COMM_WORLD);
+                }
+                break;
+            } else {
+                int quit = 0;
+                for(int i = 1; i < comm_sz; i++) {
+                    MPI_Send(&quit, 1, MPI_INT, i, SEND_QUIT, MPI_COMM_WORLD);
+                }
+            }
+        }
+
+        for(int i = 0; i < n; i++) {
+            cout<<X[i]<<" ";
         }
         cout<<endl;
+    } else {
+        // cout<<"Block size: "<<n<<" "<<comm_sz<<endl;
+        double helper_vars[3];
+        MPI_Status *status;
+        MPI_Recv(&helper_vars, 3, MPI_DOUBLE, 0, SEND_N, MPI_COMM_WORLD, status);
+        int N = helper_vars[0];
+        int blck_size = helper_vars[1];
+        double error = helper_vars[2];
+        int offset = (my_rank-1)*blck_size;        
+        double Soln[blck_size][N+1];
+        int total_size = blck_size*(N+1);
+        double* addr = &Soln[0][0];
+        MPI_Recv(addr, total_size, MPI_DOUBLE, 0, SEND_SOLN, MPI_COMM_WORLD, status);
+
+
+        while(true) {
+            double* X = (double* ) malloc(sizeof(double)*N);
+            MPI_Recv(X, N, MPI_DOUBLE, 0, SEND_X, MPI_COMM_WORLD, status);
+
+
+            double* new_X = (double*) malloc(sizeof(double)*(blck_size+1));
+            int flag = 0;
+            for(int i = 0; i < blck_size; i++) {
+                auto c = Soln[i][N];
+                double denom = 0;
+
+                for(int j = 0; j < N; j++) {
+                    if(i + offset != j) {
+                        auto a = Soln[i][j];
+                        denom += a * X[j];
+                    }
+                }
+
+                new_X[i] = (c - denom) / Soln[i][i + offset];
+                double new_err = abs(new_X[i] - X[offset + i]) / new_X[i];
+                if(new_err > error) {
+                    flag = 1;
+                }
+            }
+
+            new_X[blck_size] = flag;
+            MPI_Send(new_X, blck_size + 1, MPI_DOUBLE, 0, SEND_FLAG, MPI_COMM_WORLD);
+
+            // MPI_Recv(Soln)
+            int quit = 0;
+            MPI_Recv(&quit, 1, MPI_INT, 0, SEND_QUIT, MPI_COMM_WORLD, status);
+            if(quit == 1) {
+                break;
+            }
+        }
+        
     }
 
     return 0;

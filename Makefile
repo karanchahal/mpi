@@ -12,5 +12,5 @@ seq1:
 	./build/open
 lab2:
 	g++ --std=c++11 -fopenmp -o build/open solveopenmp.cpp
-	./build/open < 3.txt
+	./build/open < 10.txt
 
