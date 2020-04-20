@@ -74,6 +74,5 @@ int main() {
         // cout<<"Calculated: "<<ans<<" Real: "<<Soln[i][n]<<endl;
     }
 
-
 }
 

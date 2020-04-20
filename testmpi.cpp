@@ -25,6 +25,7 @@ int main() {
     int blck_size = n / (comm_sz - 1);
 
     if(my_rank == 0) {
+        
         double helper_vars[3];
         helper_vars[0] = n;
         helper_vars[1] = blck_size;
@@ -33,10 +34,11 @@ int main() {
             MPI_Send(&helper_vars, 3, MPI_DOUBLE, i, SEND_N, MPI_COMM_WORLD);
         }
 
-        double* X = (double*)malloc(sizeof(double)*n);
+        double* X = (double*)malloc(sizeof(double)*(n+1));
         for(int i = 0; i < n ; i++) {
             cin>>X[i];
         }
+        X[n] = 0;
 
         double Soln[n][n+1];
         for(int i = 0; i < n; i++) {
@@ -52,15 +54,21 @@ int main() {
             addr += sz;
         }
 
-
+        int final = 0;
+        double* new_X = (double*) malloc(sizeof(double)*(n+1));
         while(true) {
-            
+            X[n] = final;
+
             for(int i = 1; i < comm_sz; i++) {
-                MPI_Send(X, n, MPI_DOUBLE, i, SEND_X, MPI_COMM_WORLD);
+                MPI_Send(X, n+1, MPI_DOUBLE, i, SEND_X, MPI_COMM_WORLD);
             }
-            
-            int final = 0;
-            double* new_X = (double*) malloc(sizeof(double)*(n+1));
+
+            if(final == 1) {
+                break;
+            }
+
+
+            final = 1;
             for(int i = 1; i < comm_sz; i++) {
                 int flag;
                 double* new_X = (double*) malloc(sizeof(double)*(blck_size+1));
@@ -73,22 +81,10 @@ int main() {
                 }
 
                 if(flag == 1) {
-                    final = 1;
+                    final = 0;
                 }
             }
 
-            if(final == 0) {
-                int quit = 1;
-                for(int i = 1; i < comm_sz; i++) {
-                    MPI_Send(&quit, 1, MPI_INT, i, SEND_QUIT, MPI_COMM_WORLD);
-                }
-                break;
-            } else {
-                int quit = 0;
-                for(int i = 1; i < comm_sz; i++) {
-                    MPI_Send(&quit, 1, MPI_INT, i, SEND_QUIT, MPI_COMM_WORLD);
-                }
-            }
         }
 
         for(int i = 0; i < n; i++) {
@@ -96,7 +92,7 @@ int main() {
         }
         cout<<endl;
     } else {
-        // cout<<"Block size: "<<n<<" "<<comm_sz<<endl;
+
         double helper_vars[3];
         MPI_Status *status;
         MPI_Recv(&helper_vars, 3, MPI_DOUBLE, 0, SEND_N, MPI_COMM_WORLD, status);
@@ -108,14 +104,15 @@ int main() {
         int total_size = blck_size*(N+1);
         double* addr = &Soln[0][0];
         MPI_Recv(addr, total_size, MPI_DOUBLE, 0, SEND_SOLN, MPI_COMM_WORLD, status);
-
-
+        double* X = (double* ) malloc(sizeof(double)*(N+1));
+        double* new_X = (double*) malloc(sizeof(double)*(blck_size+1));
         while(true) {
-            double* X = (double* ) malloc(sizeof(double)*N);
-            MPI_Recv(X, N, MPI_DOUBLE, 0, SEND_X, MPI_COMM_WORLD, status);
+            MPI_Recv(X, N+1, MPI_DOUBLE, 0, SEND_X, MPI_COMM_WORLD, status);
 
+            if(X[N] == 1) {
+                break;
+            }
 
-            double* new_X = (double*) malloc(sizeof(double)*(blck_size+1));
             int flag = 0;
             for(int i = 0; i < blck_size; i++) {
                 auto c = Soln[i][N];
@@ -137,13 +134,6 @@ int main() {
 
             new_X[blck_size] = flag;
             MPI_Send(new_X, blck_size + 1, MPI_DOUBLE, 0, SEND_FLAG, MPI_COMM_WORLD);
-
-            // MPI_Recv(Soln)
-            int quit = 0;
-            MPI_Recv(&quit, 1, MPI_INT, 0, SEND_QUIT, MPI_COMM_WORLD, status);
-            if(quit == 1) {
-                break;
-            }
         }
         
     }

@@ -12,5 +12,7 @@ seq1:
 	./build/open
 lab2:
 	g++ --std=c++11 -fopenmp -o build/open solveopenmp.cpp
-	./build/open < 10.txt
-
+	./build/open < 1000.txt
+read:
+	mpicc --std=c++11 -fopenmp -o build/open readFile.cpp
+	mpiexec -n 10 build/open 1000.txt
