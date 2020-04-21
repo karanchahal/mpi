@@ -1,0 +1,21 @@
+Number of threads: 1
+Pure Open MP
+1.64386 21
+Pure MPI: 2
+2.88383 22
+Pure MPI: 3
+1.82152 22
+Pure MPI: 4
+1.29 22
+Pure MPI: 5
+1.1759 22
+Pure MPI: 6
+1.0371 22
+Pure MPI: 7
+0.960713 22
+Pure MPI: 8
+0.970204 22
+Pure MPI: 9
+0.958607 22
+Pure MPI: 10
+0.90854 22

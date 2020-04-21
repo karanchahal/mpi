@@ -15,4 +15,7 @@ lab2:
 	./build/open < 1000.txt
 read:
 	mpicc --std=c++11 -fopenmp -o build/open readFile.cpp
-	mpiexec -n 10 build/open 1000.txt
+	#mpiexec -n 10 build/open 1000.txt
+read2:
+	mpicc --std=c++11 -fopenmp -o build/read2 read2.cpp
+	#mpiexec -n 10 build/open 1000.txt

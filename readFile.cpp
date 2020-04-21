@@ -12,101 +12,6 @@ int SEND_N = 1;
 int SEND_SOLN = 5;
 int SEND_FLAG = 15;
 int SEND_X = 20;
-void get_numbers(double* addr, string line) {
-    stringstream ss;
-    int i = 0;
-    double found;
-    ss << line;
-    string temp;
-    while (!ss.eof()) {
-        ss >> temp; 
-        if (stringstream(temp) >> found)  {
-            addr[i] = found;
-            i++;
-        }
-
-        /* To save from space at the end of string */
-        temp = "";
-    }
-}
-
-void readinFile(double* X, double** Soln, double &n, double &error, string filename) {
-    ifstream myfile (filename);
-    string line;
-    int i = 0;
-    if (myfile.is_open())
-    {
-        while ( getline (myfile,line) )
-        {   
-            if(i == 0) {
-                n = stod(line);
-                X = (double*) malloc(sizeof(double)*n);
-                Soln = (double**) malloc(sizeof(double*)*n); // 3 doubles extra space 
-            } else if(i == 1) {
-                error = stod(line);
-            } else if(i == 2) {
-                get_numbers(X, line);
-            } else {
-                // cout<<line<<endl;
-                int offset = (n+3)*(i-3);
-                double* addr = (double *)malloc(sizeof(double)*(n+1));
-                get_numbers(addr, line);
-                Soln[i-3] = addr;
-            }
-            cout<<i<<endl;
-            i++;
-        }
-        myfile.close();
-    } else {
-        cout<<"Unable to open file !"<<endl;
-    }
-}
-
-
-
-// int alternate(double* &X, double* &Soln, double &n, double &error, const char* filename) {
-//     FILE *fp;
-   
-//     fp = fopen(filename, "r");
- 
-//     if(fp == NULL)
-//     {
-//         printf("Error opening file\n");
-//         exit(1);
-//     }
- 
-//     fscanf(fp, "%lf", &n);
-//     fscanf(fp, "%lf", &error);
-//     cout<<n<<endl;
-//     cout<<error<<endl;
-//     X = (double *)malloc(sizeof(double)*(n));
-//     // get X
-//     for(int i =0; i < n ; i++) {
-//         fscanf(fp, "%lf", &X[i]);
-//     }
-
-//     Soln = (double*) malloc(sizeof(double)*n);
-//     int count = 0;
-//     for(int i = 0; i < n; i++) {
-//         double* temp = (double*) malloc(sizeof(double)*(n+1));
-//         Soln[i] = temp;
-//         for(int j = 0; j < n+1; j++) {
-//             fscanf(fp, "%lf", &temp[j]);
-//         }
-//     }
-
-//     // for(int i = 0; i < n; i ++) {
-//     //     for(int j = 0; j < n+1; j ++) {
-//     //         cout<<Soln[i][j]<<" ";
-//     //     }
-//     //     cout<<endl;
-//     // }
-
-//     fclose(fp);
-//     return 0;
-// }
-
-
 int alternate2(double* &X, double* &Soln, double &n, double &error, const char* filename) {
     FILE *fp;
    
@@ -129,6 +34,7 @@ int alternate2(double* &X, double* &Soln, double &n, double &error, const char* 
     Soln = (double*) malloc(sizeof(double)*n*(n+1));
     int count = 0;
     for(int i = 0; i < n; i++) {
+        cout<<i<<endl;
         for(int j = 0; j < n+1; j++) {
             int addr = i*(n+1) + j;
             fscanf(fp, "%lf", &Soln[addr]);
@@ -147,15 +53,15 @@ int alternate2(double* &X, double* &Soln, double &n, double &error, const char* 
 }
 
 
-void pureOpenMP(double* X, double* Soln, int n , float error) {
-
+void pureOpenMP(double* X, double* Soln, int n , float error, int n_th) {
+    cout<<"Pure Open MP"<<endl;
+    double start, end;
+    start = omp_get_wtime();
     double* new_X = (double*) malloc(sizeof(double)*n);
     int flags[n];
-
-    auto start = omp_get_wtime();
-    int n_th = 1;
+    int num_itrs = 0;
     while(true) {
-
+				num_itrs++;
         for(int i = 0; i < n; i++)  flags[i] = 0;
 
         #pragma omp parallel for num_threads(n_th) shared(flags, X, Soln, new_X)
@@ -193,9 +99,12 @@ void pureOpenMP(double* X, double* Soln, int n , float error) {
             break;
         }
     }
+    end = omp_get_wtime();
+    double time_taken = end - start; // in seconds 
+    cout<<time_taken<<" "<<num_itrs<<endl;
     // Print X
     for(int i = 0; i < n; i++) {
-        cout<<X[i]<<endl;
+       cout<<X[i]<<endl;
     }
 }
 
@@ -211,15 +120,19 @@ int main(int argc, char *argv[]) {
         double n, error;
         double* X;
         double* Soln;
+        int n_th = atoi(argv[2]);
         // readinFile(X, Soln, n, error, "100.txt");
         alternate2(X, Soln, n, error, filename);
 
         if(comm_sz == 1) {
             // Pure OpenMP
-            pureOpenMP(X, Soln, n, error);
+            cout<<"Number of threads: "<<n_th<<endl;
+            pureOpenMP(X, Soln, n, error, n_th);
             return 0;
         }
-
+        cout<<"Pure MPI: "<<comm_sz<<" | number of threads: "<<n_th<<endl;
+        double start, end;
+        start = omp_get_wtime();
         // OpenMPI Master
         int blck_size = n / (comm_sz-1);
         int rem = ((int)n) % (comm_sz - 1);
@@ -245,7 +158,9 @@ int main(int argc, char *argv[]) {
         }
 
         int final = 0;
+        int num_itrs = 0;
         while(true) {
+            num_itrs++;
             X[(int)n] = final;
 
             for(int i = 1; i < comm_sz; i++) {
@@ -278,12 +193,16 @@ int main(int argc, char *argv[]) {
             }
             
         }
+        end = omp_get_wtime();
+        double time_taken = end - start; // in seconds 
+        cout<<time_taken<<" "<<num_itrs<<endl;
 
         for(int i = 0; i < n; i++) {
-            cout<<X[i]<<endl;
+           cout<<X[i]<<endl;
         }
 
     } else {
+        int n_th = atoi(argv[2]);
         // OpenMPI Slave
         double helper_vars[2];
         MPI_Recv(&helper_vars, 2, MPI_DOUBLE, 0, SEND_N, MPI_COMM_WORLD, NULL);
@@ -322,7 +241,6 @@ int main(int argc, char *argv[]) {
 
             int flags[blck_size];
             for(int i = 0; i < blck_size; i++) flags[i] = 0;
-            int n_th = 1;
             #pragma omp parallel for num_threads(n_th)
             for(int i = 0; i < blck_size; i++) {
                 auto c = Soln[i*((int)n+1) + (int)n];

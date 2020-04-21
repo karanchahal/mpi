@@ -1,0 +1,20 @@
+Pure MPI: 10 | number of threads: 1
+1.00708 22
+Pure MPI: 10 | number of threads: 2
+0.963676 22
+Pure MPI: 10 | number of threads: 3
+1.23704 22
+Pure MPI: 10 | number of threads: 4
+1.50764 22
+Pure MPI: 10 | number of threads: 5
+2.07172 22
+Pure MPI: 10 | number of threads: 6
+1.54628 22
+Pure MPI: 10 | number of threads: 7
+2.10056 22
+Pure MPI: 10 | number of threads: 8
+1.96707 22
+Pure MPI: 10 | number of threads: 9
+2.34301 22
+Pure MPI: 10 | number of threads: 10
+2.48221 22
